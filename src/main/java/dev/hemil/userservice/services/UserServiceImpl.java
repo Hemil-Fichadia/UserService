@@ -1,10 +1,16 @@
 package dev.hemil.userservice.services;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.hemil.userservice.dtos.SendEmailEventDto;
+import dev.hemil.userservice.dtos.UserDto;
+import dev.hemil.userservice.exceptions.UserNotFoundException;
 import dev.hemil.userservice.models.Token;
 import dev.hemil.userservice.models.User;
 import dev.hemil.userservice.repositories.TokenRepository;
 import dev.hemil.userservice.repositories.UserRepository;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -20,13 +26,18 @@ public class UserServiceImpl implements UserService{
     private UserRepository userRepository;
     private BCryptPasswordEncoder bCryptPasswordEncoder;
     private TokenRepository tokenRepository;
-
+    private KafkaTemplate<String, String> kafkaTemplate;
+    private ObjectMapper objectMapper;
     public UserServiceImpl(UserRepository userRepository,
                            BCryptPasswordEncoder bCryptPasswordEncoder,
-                           TokenRepository tokenRepository){
+                           TokenRepository tokenRepository,
+                           KafkaTemplate kafkaTemplate,
+                           ObjectMapper objectMapper){
         this.userRepository = userRepository;
         this.bCryptPasswordEncoder = bCryptPasswordEncoder;
         this.tokenRepository = tokenRepository;
+        this.kafkaTemplate = kafkaTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -47,6 +58,20 @@ public class UserServiceImpl implements UserService{
 
             // Save this user to UserRepository
             user = userRepository.save(user);
+            SendEmailEventDto emailEventDto = new SendEmailEventDto();
+            emailEventDto.setTo(email);
+            emailEventDto.setFrom("hemilfichadia@gmail.com");
+            emailEventDto.setSubject("welcome to Scaler");
+            emailEventDto.setBody("Welcome to scaler We are happy to have you on our platform. All the best!!");
+
+            try {
+                kafkaTemplate.send(
+                        "sendEmail",
+                        objectMapper.writeValueAsString(emailEventDto)
+                );
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
 
         }
         return user;
@@ -153,5 +178,16 @@ public class UserServiceImpl implements UserService{
         String message = "You have been logged out, see you soon " + name;
 
         return  message;
+    }
+
+    @Override
+    public User getUserDetails(Long userId) throws UserNotFoundException {
+        Optional<User> optionalUser = userRepository.findById(userId);
+
+        if(optionalUser.isEmpty()){
+            throw new UserNotFoundException("User with id : " + userId + " not found");
+        }
+
+        return optionalUser.get();
     }
 }

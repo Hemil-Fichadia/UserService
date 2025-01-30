@@ -2,6 +2,7 @@ package dev.hemil.userservice.controllers;
 
 import dev.hemil.userservice.dtos.*;
 import dev.hemil.userservice.dtos.ResponseStatus;
+import dev.hemil.userservice.exceptions.UserNotFoundException;
 import dev.hemil.userservice.models.Token;
 import dev.hemil.userservice.models.User;
 import dev.hemil.userservice.services.UserService;
@@ -17,7 +18,7 @@ public class UserController {
     }
     /* As we are using spring starter security dependency, all the endpoints are by default
     protected, but signup end-point should not be open to signup for new users, and so sir
-    made a SecurityConfig file and permitted signup end-point.
+    made a SecurityConfiguration file and permitted signup end-point.
     */
     @PostMapping("/signup")
     public SignUpResponseDto signup(@RequestBody SignUpRequestDto requestDto){
@@ -74,4 +75,10 @@ public class UserController {
         return responseDto;
     }
 
+    @GetMapping("/{id}")
+    public UserDto getUserDetails(@PathVariable("id") Long userId) throws UserNotFoundException {
+        User user = userService.getUserDetails(userId);
+        System.out.println("Received getUserDetails API request");
+        return UserDto.fromUser(user);
+    }
 }
